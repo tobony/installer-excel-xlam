@@ -2,6 +2,9 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 > $null
 
+# Define version information
+$appVersion = "1.0.5"
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -36,9 +39,9 @@ function Write-Log {
 
 # Create main form
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Excel Add-in Installer'
+$form.Text = "Excel Add-in Installer   v$appVersion"
 $form.Size = New-Object System.Drawing.Size(600,400)
-$form.StartPosition = 'CenterScreen'
+$form.StartPosition = 'CenterParent'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 
@@ -59,28 +62,28 @@ $form.Controls.Add($progressBar)
 
 # Select folder button
 $selectFolderButton = New-Object System.Windows.Forms.Button
-$selectFolderButton.Location = New-Object System.Drawing.Point(10,70)
+$selectFolderButton.Location = New-Object System.Drawing.Point(10,55)
 $selectFolderButton.Size = New-Object System.Drawing.Size(170,30)
 $selectFolderButton.Text = 'Select source folder'
 $form.Controls.Add($selectFolderButton)
 
 # Install button (modified position)
 $installButton = New-Object System.Windows.Forms.Button
-$installButton.Location = New-Object System.Drawing.Point(200,70)
+$installButton.Location = New-Object System.Drawing.Point(200,55)
 $installButton.Size = New-Object System.Drawing.Size(170,30)
 $installButton.Text = 'Install Excel Add-in'
 $form.Controls.Add($installButton)
 
 # Open Addin Folder button
 $openFolderButton = New-Object System.Windows.Forms.Button
-$openFolderButton.Location = New-Object System.Drawing.Point(390,70)
+$openFolderButton.Location = New-Object System.Drawing.Point(390,55)
 $openFolderButton.Size = New-Object System.Drawing.Size(170,30)
 $openFolderButton.Text = 'Open Addin Folder'
 $form.Controls.Add($openFolderButton)
 
 # Folder path label
 $folderLabel = New-Object System.Windows.Forms.Label
-$folderLabel.Location = New-Object System.Drawing.Point(10,105)
+$folderLabel.Location = New-Object System.Drawing.Point(10,100)
 $folderLabel.Size = New-Object System.Drawing.Size(565,15)
 $folderLabel.Text = "Source folder: $SourcePath"
 $form.Controls.Add($folderLabel)
@@ -130,7 +133,7 @@ $openFolderButton.Add_Click({
 $label = New-Object System.Windows.Forms.Label
 $label.Location = New-Object System.Drawing.Point(10,20)
 $label.Size = New-Object System.Drawing.Size(565,40)
-$label.Text = 'This tool will install Excel Add-in from the src folder and register it in Excel.'
+$label.Text = 'This will install Excel Add-in from the source folder(\src) and register it in Excel.'
 $form.Controls.Add($label)
 
 # Form load event handler
@@ -235,11 +238,6 @@ function Install-AddIn {
         }
         
         $progressBar.Value = 40
-        # # Create install directory if not exists
-        # if (-not (Test-Path $InstallPath)) {
-        #     New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
-        #     Write-Log "AddIn 폴더 생성됨: $InstallPath"
-        # }
         # Validate installation path
         Write-Log "AddIn 설치 경로 확인 중: $InstallPath"
         if ([string]::IsNullOrEmpty($InstallPath)) {
@@ -319,11 +317,9 @@ function Install-AddIn {
                 $openKeys = Get-ItemProperty -Path $registryPath -Name 'OPEN*' -ErrorAction SilentlyContinue
                 if ($openKeys) {
                     $openKeys.PSObject.Properties | Where-Object { $_.Name -like 'OPEN*' } | ForEach-Object {
-                        if ($_.Name -match 'OPEN(\d+)') {
-                            $keyNum = [int]$matches[1]
-                            if ($keyNum -gt $maxOpenKey) {
-                                $maxOpenKey = $keyNum
-                            }
+                        $keyNum = [int]($_.Name -replace 'OPEN', '')
+                        if ($keyNum -gt $maxOpenKey) {
+                            $maxOpenKey = $keyNum
                         }
                     }
                     Write-Log "기존 OPEN 키 최대값: $maxOpenKey"
@@ -360,15 +356,15 @@ function Install-AddIn {
                 if ($file.Extension -eq '.xlam') {
                     try {
                         $maxOpenKey++
-                        $newKeyName = "OPEN$maxOpenKey"
+                        # $newKeyName = "OPEN$maxOpenKey"
+                        $newKeyName = "OPEN"
                         
                         if (-not (Test-Path $registryPath)) {
                             Write-Log "레지스트리 경로 생성 중: $registryPath"
-                            New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null
+                            New-Item -Path $registryPath -Force | Out-Null
                         }
                         
-                        Write-Log "Add-in 등록 중: $($file.Name)"
-                        New-ItemProperty -Path $registryPath -Name $newKeyName -Value $destPath -PropertyType String -Force -ErrorAction Stop | Out-Null
+                        New-ItemProperty -Path $registryPath -Name $newKeyName -Value $destPath -PropertyType String -Force | Out-Null
                         Write-Log "→ Add-in 등록 완료: $($file.Name) (키: $newKeyName)"
                     } catch {
                         Write-Log "[오류] Add-in 등록 실패: $_"
