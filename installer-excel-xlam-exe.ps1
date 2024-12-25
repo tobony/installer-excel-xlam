@@ -117,9 +117,9 @@ $form.Add_Shown({
             $form.Close()
             return
         }
-        Write-Log "Excel 프로세스가 종료되었습니다."
+        Write-Log "Excel 프로세스가 종료되었습니다. 설치버튼을 클릭하세요."
     } else {
-        Write-Log "Excel이 실행중이지 않습니다."
+        Write-Log "Excel이 실행중이지 않습니다. 설치버튼을 클릭하세요."
     }
     
     $installButton.Enabled = $true
@@ -142,7 +142,7 @@ function Install-AddIn {
         if (-not (Test-Path $SourcePath)) {
             Write-Log "[오류] src 폴더를 찾을 수 없습니다: $SourcePath"
             [System.Windows.Forms.MessageBox]::Show(
-                "src 폴더를 찾을 수 없습니다.`n설치 파일 구조를 확인해주세요.`n경로: $SourcePath",
+                "src 폴더를 찾을 수 없습니다.`n현재 폴더에 설치에 필요한 폴더/파일이 있는지 확인해주세요.`n경로: $SourcePath",
                 "오류",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error)
@@ -167,9 +167,9 @@ function Install-AddIn {
         
         # Check source files
         if ($sourceFiles.Count -eq 0) {
-            Write-Log "[오류] src 폴더가 비어있습니다."
+            Write-Log "[오류] src 설치폴더가 비어있습니다."
             [System.Windows.Forms.MessageBox]::Show(
-                "src 폴더에 설치할 파일이 없습니다.",
+                "src 설치폴더에 설치할 파일이 없습니다.",
                 "오류",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error)
