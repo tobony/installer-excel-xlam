@@ -1,4 +1,4 @@
-﻿# GUI 모드 설정
+﻿﻿# GUI 모드 설정
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
@@ -185,7 +185,13 @@ function Install-AddIn {
         
         $progressBar.Value = 50
         # Registry path for Excel add-ins
-        $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options'
+        # Determine Excel version and set registry path accordingly
+        $excelVersion = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\' -ErrorAction SilentlyContinue).PSObject.Properties.Name | Where-Object { $_ -like '16.*' -or $_ -like '15.*' } | Sort-Object -Descending | Select-Object -First 1
+        switch ($excelVersion) {
+            '16.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' }
+            '15.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\15.0\Excel\Options' }
+            default { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' } # Fallback for 365
+        }
         $maxOpenKey = 0
         
         # Check existing OPEN keys
