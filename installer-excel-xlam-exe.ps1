@@ -1,13 +1,13 @@
-﻿﻿# GUI 모드 설정
-[System.Windows.Forms.Application]::EnableVisualStyles()
-[System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
-
-# PowerShell script encoding setting
+﻿# PowerShell script encoding setting
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 > $null
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+# GUI 모드 설정
+[System.Windows.Forms.Application]::EnableVisualStyles()
+[System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 
 # Get the executable path
@@ -22,7 +22,7 @@ if ([string]::IsNullOrEmpty($exePath)) {
 }
 
 # Source paths definition at the start
-$SourcePath = Join-Path $exePath "src"
+$SourcePath = Join-Path $exePath "src"  # default path
 $InstallPath = "$env:APPDATA\Microsoft\AddIns"
 
 # Write to log function
@@ -44,8 +44,8 @@ $form.MaximizeBox = $false
 
 # Log textbox
 $logTextBox = New-Object System.Windows.Forms.TextBox
-$logTextBox.Location = New-Object System.Drawing.Point(10,120)
-$logTextBox.Size = New-Object System.Drawing.Size(565,200)
+$logTextBox.Location = New-Object System.Drawing.Point(10,130)
+$logTextBox.Size = New-Object System.Drawing.Size(565,190)
 $logTextBox.Multiline = $true
 $logTextBox.ScrollBars = 'Vertical'
 $logTextBox.ReadOnly = $true
@@ -57,12 +57,74 @@ $progressBar.Location = New-Object System.Drawing.Point(10,330)
 $progressBar.Size = New-Object System.Drawing.Size(565,20)
 $form.Controls.Add($progressBar)
 
-# Install button
+# Select folder button
+$selectFolderButton = New-Object System.Windows.Forms.Button
+$selectFolderButton.Location = New-Object System.Drawing.Point(10,70)
+$selectFolderButton.Size = New-Object System.Drawing.Size(170,30)
+$selectFolderButton.Text = 'Select source folder'
+$form.Controls.Add($selectFolderButton)
+
+# Install button (modified position)
 $installButton = New-Object System.Windows.Forms.Button
 $installButton.Location = New-Object System.Drawing.Point(200,70)
-$installButton.Size = New-Object System.Drawing.Size(200,30)
+$installButton.Size = New-Object System.Drawing.Size(170,30)
 $installButton.Text = 'Install Excel Add-in'
 $form.Controls.Add($installButton)
+
+# Open Addin Folder button
+$openFolderButton = New-Object System.Windows.Forms.Button
+$openFolderButton.Location = New-Object System.Drawing.Point(390,70)
+$openFolderButton.Size = New-Object System.Drawing.Size(170,30)
+$openFolderButton.Text = 'Open Addin Folder'
+$form.Controls.Add($openFolderButton)
+
+# Folder path label
+$folderLabel = New-Object System.Windows.Forms.Label
+$folderLabel.Location = New-Object System.Drawing.Point(10,105)
+$folderLabel.Size = New-Object System.Drawing.Size(565,15)
+$folderLabel.Text = "Source folder: $SourcePath"
+$form.Controls.Add($folderLabel)
+
+# Add folder browser dialog
+$folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+$folderBrowser.Description = "Select source folder containing Excel Add-in files"
+
+# Select folder button click event
+$selectFolderButton.Add_Click({
+    if ($folderBrowser.ShowDialog() -eq 'OK') {
+        $script:SourcePath = $folderBrowser.SelectedPath
+        $folderLabel.Text = "Source folder: $SourcePath"
+        Write-Log "소스 폴더가 변경되었습니다: $SourcePath"
+
+        # Verify source folder contains files
+        $sourceFiles = Get-ChildItem -Path $SourcePath -File
+        if ($sourceFiles.Count -eq 0) {
+            Write-Log "[경고] 선택한 폴더에 파일이 없습니다."
+            [System.Windows.Forms.MessageBox]::Show(
+                "선택한 폴더에 설치할 파일이 없습니다.`n다른 폴더를 선택해주세요.",
+                "경고",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Warning)
+        } else {
+            Write-Log "→ 발견된 파일 수: $($sourceFiles.Count)"
+        }
+    }
+})
+
+# Open Addin Folder button click event
+$openFolderButton.Add_Click({
+    if (Test-Path $InstallPath) {
+        Start-Process "explorer.exe" -ArgumentList $InstallPath
+        Write-Log "Add-in 폴더를 열었습니다: $InstallPath"
+    } else {
+        Write-Log "[경고] Add-in 폴더를 찾을 수 없습니다: $InstallPath"
+        [System.Windows.Forms.MessageBox]::Show(
+            "Add-in 폴더를 찾을 수 없습니다.`n경로: $InstallPath",
+            "경고",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning)
+    }
+})
 
 # Description label
 $label = New-Object System.Windows.Forms.Label
@@ -117,9 +179,9 @@ $form.Add_Shown({
             $form.Close()
             return
         }
-        Write-Log "Excel 프로세스가 종료되었습니다. 설치버튼을 클릭하세요."
+        Write-Log "Excel 프로세스가 종료되었습니다. 버튼을 클릭해서 다음 절차를 진행하세요."
     } else {
-        Write-Log "Excel이 실행중이지 않습니다. 설치버튼을 클릭하세요."
+        Write-Log "Excel이 실행중이지 않습니다. 버튼을 클릭해서 다음 절차를 진행하세요."
     }
     
     $installButton.Enabled = $true
@@ -134,15 +196,11 @@ function Install-AddIn {
         Write-Log "설치를 시작합니다..."
         $progressBar.Value = 10
         
-        # Source and destination paths
-        $SourcePath = Join-Path $exePath "src"
-        $InstallPath = "$env:APPDATA\Microsoft\AddIns"
-        
         # Check source folder
         if (-not (Test-Path $SourcePath)) {
-            Write-Log "[오류] src 폴더를 찾을 수 없습니다: $SourcePath"
+            Write-Log "[오류] 소스 폴더를 찾을 수 없습니다: $SourcePath"
             [System.Windows.Forms.MessageBox]::Show(
-                "src 폴더를 찾을 수 없습니다.`n현재 폴더에 설치에 필요한 폴더/파일이 있는지 확인해주세요.`n경로: $SourcePath",
+                "소스 폴더를 찾을 수 없습니다.`n폴더 경로를 확인해주세요.`n경로: $SourcePath",
                 "오류",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error)
@@ -167,9 +225,9 @@ function Install-AddIn {
         
         # Check source files
         if ($sourceFiles.Count -eq 0) {
-            Write-Log "[오류] src 설치폴더가 비어있습니다."
+            Write-Log "[오류] src 폴더가 비어있습니다."
             [System.Windows.Forms.MessageBox]::Show(
-                "src 설치폴더에 설치할 파일이 없습니다.",
+                "src 폴더에 설치할 파일이 없습니다.",
                 "오류",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error)
@@ -177,35 +235,110 @@ function Install-AddIn {
         }
         
         $progressBar.Value = 40
-        # Create install directory if not exists
-        if (-not (Test-Path $InstallPath)) {
-            New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
-            Write-Log "AddIn 폴더 생성됨: $InstallPath"
+        # # Create install directory if not exists
+        # if (-not (Test-Path $InstallPath)) {
+        #     New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
+        #     Write-Log "AddIn 폴더 생성됨: $InstallPath"
+        # }
+        # Validate installation path
+        Write-Log "AddIn 설치 경로 확인 중: $InstallPath"
+        if ([string]::IsNullOrEmpty($InstallPath)) {
+            throw "Installation path is null or empty"
+        }
+        
+        # Create or verify install directory
+        try {
+            if (-not (Test-Path $InstallPath)) {
+                New-Item -ItemType Directory -Path $InstallPath -Force -ErrorAction Stop | Out-Null
+                Write-Log "AddIn 폴더 생성됨: $InstallPath"
+            } else {
+                Write-Log "기존 AddIn 폴더 사용: $InstallPath"
+                # Verify write permissions
+                $testFile = Join-Path $InstallPath "test.tmp"
+                try {
+                    [System.IO.File]::WriteAllText($testFile, "")
+                    Remove-Item $testFile -Force
+                } catch {
+                    throw "AddIn 폴더에 쓰기 권한이 없습니다: $InstallPath"
+                }
+            }
+        } catch {
+            Write-Log "[오류] AddIn 폴더 접근 실패: $_"
+            throw "Failed to create or access AddIn directory: $_"
         }
         
         $progressBar.Value = 50
-        # Registry path for Excel add-ins
-        # Determine Excel version and set registry path accordingly
-        $excelVersion = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\' -ErrorAction SilentlyContinue).PSObject.Properties.Name | Where-Object { $_ -like '16.*' -or $_ -like '15.*' } | Sort-Object -Descending | Select-Object -First 1
-        switch ($excelVersion) {
-            '16.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' }
-            '15.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\15.0\Excel\Options' }
-            default { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' } # Fallback for 365
-        }
-        $maxOpenKey = 0
+        # # Registry path for Excel add-ins
+        # $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options'
+        # $maxOpenKey = 0
         
-        # Check existing OPEN keys
-        if (Test-Path $registryPath) {
-            $openKeys = Get-ItemProperty -Path $registryPath -Name 'OPEN*' -ErrorAction SilentlyContinue
-            if ($openKeys) {
-                $openKeys.PSObject.Properties | Where-Object { $_.Name -like 'OPEN*' } | ForEach-Object {
-                    $keyNum = [int]($_.Name -replace 'OPEN', '')
-                    if ($keyNum -gt $maxOpenKey) {
-                        $maxOpenKey = $keyNum
-                    }
+        # # Check existing OPEN keys
+        # if (Test-Path $registryPath) {
+        #     $openKeys = Get-ItemProperty -Path $registryPath -Name 'OPEN*' -ErrorAction SilentlyContinue
+        #     if ($openKeys) {
+        #         $openKeys.PSObject.Properties | Where-Object { $_.Name -like 'OPEN*' } | ForEach-Object {
+        #             $keyNum = [int]($_.Name -replace 'OPEN', '')
+        #             if ($keyNum -gt $maxOpenKey) {
+        #                 $maxOpenKey = $keyNum
+        #             }
+        #         }
+        #     }
+        # }
+
+        # Registry path for Excel add-ins
+        Write-Log "Excel 버전 확인 중..."
+        try {
+            # Determine Excel version and set registry path accordingly
+            $excelVersion = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\' -ErrorAction Stop).PSObject.Properties.Name | 
+                Where-Object { $_ -like '16.*' -or $_ -like '15.*' } | 
+                Sort-Object -Descending | 
+                Select-Object -First 1
+
+            if ([string]::IsNullOrEmpty($excelVersion)) {
+                Write-Log "Excel 버전을 찾을 수 없습니다. Office 365 기본값 사용."
+                $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' # Default for 365
+            } else {
+                Write-Log "감지된 Excel 버전: $excelVersion"
+                switch ($excelVersion) {
+                    '16.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' }
+                    '15.0' { $registryPath = 'HKCU:\Software\Microsoft\Office\15.0\Excel\Options' }
+                    default { $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' }
                 }
             }
+        } catch {
+            Write-Log "[경고] Excel 버전 확인 실패. Office 365 기본값 사용."
+            $registryPath = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' # Fallback for 365
         }
+        Write-Log "레지스트리 경로: $registryPath"
+        $maxOpenKey = 0
+
+        # Check existing OPEN keys
+        Write-Log "레지스트리 키 확인 중..."
+        try {
+            if (Test-Path $registryPath) {
+                $openKeys = Get-ItemProperty -Path $registryPath -Name 'OPEN*' -ErrorAction SilentlyContinue
+                if ($openKeys) {
+                    $openKeys.PSObject.Properties | Where-Object { $_.Name -like 'OPEN*' } | ForEach-Object {
+                        if ($_.Name -match 'OPEN(\d+)') {
+                            $keyNum = [int]$matches[1]
+                            if ($keyNum -gt $maxOpenKey) {
+                                $maxOpenKey = $keyNum
+                            }
+                        }
+                    }
+                    Write-Log "기존 OPEN 키 최대값: $maxOpenKey"
+                } else {
+                    Write-Log "기존 OPEN 키가 없습니다."
+                }
+            } else {
+                Write-Log "레지스트리 경로가 없습니다. 새로 생성됩니다."
+                New-Item -Path $registryPath -Force | Out-Null
+            }
+        } catch {
+            Write-Log "[경고] 레지스트리 키 확인 중 오류: $_"
+            # Continue with maxOpenKey = 0
+        }
+
         
         $progressBar.Value = 60
         # Process each file
@@ -225,15 +358,22 @@ function Install-AddIn {
                 
                 # Register if it's an XLAM file
                 if ($file.Extension -eq '.xlam') {
-                    $maxOpenKey++
-                    $newKeyName = "OPEN$maxOpenKey"
-                    
-                    if (-not (Test-Path $registryPath)) {
-                        New-Item -Path $registryPath -Force | Out-Null
+                    try {
+                        $maxOpenKey++
+                        $newKeyName = "OPEN$maxOpenKey"
+                        
+                        if (-not (Test-Path $registryPath)) {
+                            Write-Log "레지스트리 경로 생성 중: $registryPath"
+                            New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null
+                        }
+                        
+                        Write-Log "Add-in 등록 중: $($file.Name)"
+                        New-ItemProperty -Path $registryPath -Name $newKeyName -Value $destPath -PropertyType String -Force -ErrorAction Stop | Out-Null
+                        Write-Log "→ Add-in 등록 완료: $($file.Name) (키: $newKeyName)"
+                    } catch {
+                        Write-Log "[오류] Add-in 등록 실패: $_"
+                        throw "Failed to register Add-in in registry: $_"
                     }
-                    
-                    New-ItemProperty -Path $registryPath -Name $newKeyName -Value $destPath -PropertyType String -Force | Out-Null
-                    Write-Log "→ Add-in 등록 완료: $($file.Name)"
                 }
             }
             catch {
