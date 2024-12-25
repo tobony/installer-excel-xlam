@@ -21,3 +21,9 @@
      
 - 아래 명령어로 exe파일을 생성합니다.    
   ```Invoke-ps2exe .\installer-excel-xlam-exe.ps1 .\installer-excel-xlam.exe -noConsole -RequireAdmin```
+
+<br />
+<br />
+
+
+  ![image](https://github.com/user-attachments/assets/52dc639b-0aec-4dcd-9989-6addd70ec309)
